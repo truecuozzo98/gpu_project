@@ -5,13 +5,7 @@
 
 using namespace std;
 
-struct Edge {
-    int node1;
-    int node2;
-    int weight;
-};
-
-std::vector<std::vector<std::tuple<long long, long long, long long>>> generate(int nodes) {
+std::vector<std::tuple<long long, long long, long long>> generate(int nodes) {
     vector<vector<tuple<long long int, long long int, long long int>>> adjacency(nodes);
 
     long long int extra_edges = ((nodes - 1) * nodes) / 2 - (nodes - 1);
@@ -34,14 +28,14 @@ std::vector<std::vector<std::tuple<long long, long long, long long>>> generate(i
 
     for (long long int i = 1; i < nodes; ++i) {
         long long int add = rand() % i;
-        long long int weight = rand() % MAX_EDGE_WEIGHT + MIN_EDGE_WEIGHT;
+        long long int weight = rand() % MAX_EDGE_WEIGHT + 1;
         adjacency[graph[i]].push_back(make_tuple(graph[i], graph[add], weight));
         adjacency[graph[add]].push_back(make_tuple(graph[add], graph[i], weight));
         present_edge.insert(make_pair(min(graph[add], graph[i]), max(graph[add], graph[i])));
     }
 
     for (long long int i = 1; i <= extra_edges; ++i) {
-        long long int weight = rand() % MAX_EDGE_WEIGHT + MIN_EDGE_WEIGHT;
+        long long int weight = rand() % MAX_EDGE_WEIGHT;
         while (1) {
             long long int node1 = rand() % nodes;
             long long int node2 = rand() % nodes;
@@ -57,36 +51,17 @@ std::vector<std::vector<std::tuple<long long, long long, long long>>> generate(i
         }
     }
 
-    //Edge *edges = new Edge [nodes-1 + extra_edges];
-    //long long int edge_counter = 0;
-    for (long long int i = 0; i < nodes; ++i/*, ++edge_counter*/) {
-        for (long long int j = 0; j < adjacency[i].size(); ++j/*, ++edge_counter*/) {
+    vector<tuple<long long int, long long int, long long int>> edges;
+    for (long long int i = 0; i < nodes; ++i) {
+        for (long long int j = 0; j < adjacency[i].size(); ++j) {
             long long int node1 = get<0>(adjacency[i][j]);
             long long int node2 = get<1>(adjacency[i][j]);
             long long int weight = get<2>(adjacency[i][j]);
-            /*edges[edge_counter].node1 = node1;
-            edges[edge_counter].node2 = node2;
-            edges[edge_counter].weight = weight;*/
-            cout << node1 << " " << node2 << " " << weight << "\n";
-            //cout << j << " " << adjacency[i].size() << "\n";
+            edges.push_back(make_tuple(node1, node2, weight));
         }
     }
-/*    printf("\n\n");
 
-
-    for(long long int i = 0 ; i < sizeof(*edges) ; i++) {
-        long long int node1 = edges[edge_counter].node1;
-        long long int node2 = edges[edge_counter].node2;
-        long long int weight = edges[edge_counter].weight;
-        cout << node1 << " " << node2 << " " << weight << "\n";
-    }*/
-
-/*
-    long long int x = get<1>(adjacency[1][0]);
-
-    cout << x;*/
-    return adjacency;
-
+    return edges;
 }
 
 int main(){
@@ -97,23 +72,15 @@ int main(){
     cin.tie(NULL);
     cout.tie(NULL);
 
-    
-    // nodes<=MAX_NODES
-
-    //printf("Insert the number of nodes: ");
-
     long long int nodes = 10;
-    //cin>>nodes;
-    //vector<vector<tuple<long long int, long long int, long long int>>> graph = generate(nodes);
+    vector<tuple<long long int, long long int, long long int>> graph = generate(nodes);
+
+    for(long long int i = 0 ; i < graph.size() ; i++) {
+        long long int node1 = get<0>(graph[i]);
+        long long int node2 = get<1>(graph[i]);
+        long long int weight = get<2>(graph[i]);        
+        cout << node1 << " " << node2 << " " << weight << "\n";
+    }
     
-    //for(i = 0 ; i < graph.size() ; i++) {}
-
-    generate(nodes);
-    //generate(20);
-    //generate(30);
-
-
-    
-
     return 0;
 }
