@@ -10,13 +10,14 @@ int main(){
     cout.tie(NULL);
 
     long long int nodes = 10;
-    vector<tuple<long long int, long long int, long long int>> graph = generate(nodes);
+    vector<vector<pair<long long int, long long int>>> graph = generate(nodes);
 
-    for(long long int i = 0 ; i < graph.size() ; i++) {
-        long long int node1 = get<0>(graph[i]);
-        long long int node2 = get<1>(graph[i]);
-        long long int weight = get<2>(graph[i]);        
-        cout << node1 << " " << node2 << " " << weight << "\n";
+    for(long long int i = 0; i < nodes; ++i){
+        for(long long int j = 0; j < graph[i].size(); ++j){
+            if(i < graph[i][j].first){
+                cout<<i<<" "<<graph[i][j].first<<" "<<graph[i][j].second<<"\n";
+            }
+        }
     }
     
     return 0;

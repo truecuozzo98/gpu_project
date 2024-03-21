@@ -4,4 +4,4 @@
 
 using namespace std;
 
-extern std::vector<std::tuple<long long, long long, long long>> generate(int nodes);
+extern std::vector<std::vector<std::pair<long long int, long long int>>> generate(int nodes);
