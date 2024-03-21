@@ -2,11 +2,17 @@
 #include <stdbool.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <vector>
+#include <tuple>
+#include "random_graph_generator.h"
+
+using namespace std;
 
 // Function to find the vertex with minimum key value,
 // from the set of vertices not yet included in MST
-int minKey(int key[], bool mstSet[], int V) {
-    int min = INT_MAX, min_index;
+int minKey(long long int key[], bool mstSet[], int V) {
+    long long int min = LLONG_MAX;
+    int min_index;
 
     for (int v = 0; v < V; v++)
         if (mstSet[v] == false && key[v] < min)
@@ -16,21 +22,22 @@ int minKey(int key[], bool mstSet[], int V) {
 }
 
 // Function to print the constructed MST stored in parent[]
-void printMST(int parent[], int **graph, int V) {
+void printMST(int parent[], vector<tuple<long long int, long long int, long long int>> graph) {
     printf("Edge   Weight\n");
-    for (int i = 1; i < V; i++)
-        printf("%d - %d    %d \n", parent[i], i, graph[i][parent[i]]);
+    for (int i = 1; i < graph.size(); i++) {
+        printf("%d - %lld    %lld \n", parent[i], get<0>(graph[i]), get<2>(graph[i]));
+    }
 }
 
 // Function to construct and print MST for a graph represented using adjacency matrix representation
-void primMST(int **graph, int V) {
+void primMST(vector<tuple<long long int, long long int, long long int>> graph, int V) {
     int parent[V]; // Array to store constructed MST
-    int key[V];    // Key values used to pick minimum weight edge in cut
+    long long int key[V];    // Key values used to pick minimum weight edge in cut
     bool mstSet[V]; // To represent set of vertices not yet included in MST
 
     // Initialize all keys as INFINITE
     for (int i = 0; i < V; i++)
-        key[i] = INT_MAX, mstSet[i] = false;
+        key[i] = LLONG_MAX, mstSet[i] = false;
 
     // Always include first  vertex in MST.
     key[0] = 0;     // Make key 0 so that this vertex is picked as first vertex
@@ -46,60 +53,39 @@ void primMST(int **graph, int V) {
 
         // Update key value and parent index of the adjacent vertices of the picked vertex.
         // Consider only those vertices which are not yet included in MST
-        for (int v = 0; v < V; v++)
+        for (int i = 0; i < graph.size(); i++) {
+            long long int node1 = get<0>(graph[i]);
+            long long int node2 = get<1>(graph[i]);
+            long long int weight = get<2>(graph[i]);
 
-            // graph[u][v] is non zero only for adjacent vertices of m
-            // mstSet[v] is false for vertices not yet included in MST
-            // Update the key only if graph[u][v] is smaller than key[v]
-            if (graph[u][v] && mstSet[v] == false && graph[u][v] < key[v])
-                parent[v] = u, key[v] = graph[u][v];
-    }
-
-    // Print the constructed MST
-    printMST(parent, graph, V);
-}
-
-int main() {
-    FILE *file = fopen("graph", "r");
-    if (file == NULL) {
-        printf("Error opening the file.\n");
-        return 1;
-    }
-
-    int V, E;
-    fscanf(file, "%d %d", &V, &E); // Read number of vertices and edges
-
-    // Allocate memory for the graph
-    int **graph = (int **)malloc(V * sizeof(int *));
-    for (int i = 0; i < V; i++)
-        graph[i] = (int *)malloc(V * sizeof(int));
-
-
-    // Initialize the graph
-    for (int i = 0; i < V; i++) {
-        for (int j = 0; j < V; j++) {
-            graph[i][j] = 0;
+            if ((node1 == u || node2 == u) && mstSet[node1] != mstSet[node2]) {
+                int v = (node1 == u) ? node2 : node1;
+                if (key[v] > weight) {
+                    parent[v] = u;
+                    key[v] = weight;
+                }
+            }
         }
     }
 
-    // Read edges and weights from the file
-    for (int i = 0; i < E; i++) {
-        int node1, node2, weight;
-        fscanf(file, "%d %d %d", &node1, &node2, &weight);
-        graph[node1][node2] = weight;
-        graph[node2][node1] = weight; // Undirected graph
+    // Print the constructed MST
+    printMST(parent, graph);
+}
+
+int main() {
+    int V = 10; // Number of vertices
+    vector<tuple<long long int, long long int, long long int>> graph = generate(V);
+
+    for(long long int i = 0 ; i < graph.size() ; i++) {
+        long long int node1 = get<0>(graph[i]);
+        long long int node2 = get<1>(graph[i]);
+        long long int weight = get<2>(graph[i]);        
+        cout << node1 << " " << node2 << " " << weight << "\n";
     }
 
-    // Close the file
-    fclose(file);
+    printf("\n\n");
 
     // Print the solution
     primMST(graph, V);
-
-    // Free allocated memory for the graph
-    for (int i = 0; i < V; i++)
-        free(graph[i]);
-    free(graph);
-
     return 0;
 }
