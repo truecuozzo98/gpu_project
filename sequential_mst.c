@@ -74,7 +74,7 @@ void printGraph(int n, const Graph& graph) {
 
 int main() {
     int n = 10;
-    vector<vector<pair<long long int, long long int>>> graph = generate(n);
+    Graph graph = generate(n);
 
     printf("Generated graph:\n");
     printGraph(n, graph);
