@@ -31,7 +31,6 @@ std::vector<std::vector<std::pair<long long int, long long int>>> generate(int n
         long long int add = rand() % i;
         long long int weight = rand() % MAX_EDGE_WEIGHT;
         adjacency[graph[i]].push_back(make_pair(graph[add], weight));
-        adjacency[graph[add]].push_back(make_pair(graph[i], weight));
         present_edge.insert(make_pair(min(graph[add], graph[i]), max(graph[add], graph[i])));
     }
 
@@ -43,7 +42,6 @@ std::vector<std::vector<std::pair<long long int, long long int>>> generate(int n
             if(node1 == node2) continue;
             if(present_edge.find(make_pair(min(node1, node2), max(node1, node2))) == present_edge.end()){
                 adjacency[node1].push_back(make_pair(node2, weight));
-                adjacency[node2].push_back(make_pair(node1, weight));
                 present_edge.insert(make_pair(min(node1, node2), max(node1, node2)));
                 break;
             }
