@@ -1,3 +1,5 @@
 ﻿.vscode
 *.exe
 graph.txt
+hello world cuda.txt
+sequential_test.c

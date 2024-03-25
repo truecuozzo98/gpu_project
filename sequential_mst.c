@@ -1,18 +1,21 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
+#include <iostream>
 #include <vector>
-#include <tuple>
+#include <utility>
+#include <limits.h>
+#include <queue>
 #include "random_graph_generator.h"
 
 using namespace std;
 
+typedef pair<long long int, long long int> Edge; // Define edge type
+typedef vector<vector<Edge>> Graph; // Define graph type
+
 // Function to find the minimum weight vertex from the set of vertices not yet included in MST
-int minWeightVertex(int n, long long int key[], int notInMst[]) {
+int minWeightVertex(int n, vector<long long int>& key, vector<bool>& notInMst) {
     long long int minWeight = LLONG_MAX;
     int minWeightVertex;
     for (int v = 0; v < n; v++) {
-        if (notInMst[v] == 0 && key[v] < minWeight) {
+        if (notInMst[v] && key[v] < minWeight) {
             minWeight = key[v];
             minWeightVertex = v;
         }
@@ -20,38 +23,12 @@ int minWeightVertex(int n, long long int key[], int notInMst[]) {
     return minWeightVertex;
 }
 
-// Function to print MST using the parent array
-void printMST(int n, int mst[], vector<vector<pair<long long int, long long int>>>& graph) {
-    printf("Minimum SPanning Tree\nEdge     Weight\n");
-    for (int i = 1; i < n; i++) {
-        int u = mst[i];
-        int v = i;
-        long long int weight = -1;
-        // Find the weight of edge (u, v)
-        for (auto& neighbor : graph[u]) {
-            if (neighbor.first == v) {
-                weight = neighbor.second;
-                break;
-            }
-        }
-        printf("%d - %d    %lld \n", u, v, weight);
-    }
-}
+// Function to implement Prim's MST algorithm and return MST as a graph
+Graph primMST(int n, const Graph& graph) {
+    vector<long long int> key(n, LLONG_MAX); // Key values used to pick minimum weight edge in cut
+    vector<bool> notInMst(n, true); // To represent set of vertices not yet included in MST
+    vector<int> mst(n, -1); // Array to store constructed MST parent
 
-
-// Function to implement Prim's MST algorithm
-void primMST(int n, vector<vector<pair<long long int, long long int>>>& graph) {
-    int mst[n]; // Array to store constructed MST
-    long long int key[n]; // Key values used to pick minimum weight edge in cut
-    int notInMst[n]; // To represent set of vertices not yet included in MST
-
-    // Initialize all keys as INFINITE
-    for (int i = 0; i < n; i++) {
-        key[i] = LLONG_MAX;
-        notInMst[i] = 0;
-    }
-
-    // Always include first vertex in MST.
     key[0] = 0; // Make key 0 so that this vertex is picked as first vertex
     mst[0] = -1; // First node is always root of MST
 
@@ -61,40 +38,53 @@ void primMST(int n, vector<vector<pair<long long int, long long int>>>& graph) {
         int u = minWeightVertex(n, key, notInMst);
 
         // Add the picked vertex to the MST set
-        notInMst[u] = 1;
+        notInMst[u] = false;
 
-        // Update key value and parent index of the adjacent vertices of the picked vertex.
+        // Update key value and mst index of the adjacent vertices of the picked vertex.
         // Consider only those vertices which are not yet included in MST
-        for (auto& neighbor : graph[u]) {
+        for (const Edge& neighbor : graph[u]) {
             int v = neighbor.first;
             long long int weight = neighbor.second;
-            if (notInMst[v] == 0 && weight < key[v]) {
+            if (notInMst[v] && weight < key[v]) {
                 mst[v] = u;
                 key[v] = weight;
             }
         }
     }
 
-    // Print the constructed MST
-    printMST(n, mst, graph);
+    // Construct MST graph from mst array
+    Graph mstGraph(n);
+    for (int i = 1; i < n; ++i) {
+        int u = mst[i];
+        mstGraph[u].emplace_back(i, key[i]);
+    }
+    return mstGraph;
+}
+
+void printGraph(int n, const Graph& graph) {
+    for (int u = 0; u < n; ++u) {
+        for (const auto& neighbor : graph[u]) {
+            int v = neighbor.first;
+            long long int weight = neighbor.second;
+            cout << u << " - " << v << " : " << weight << endl;
+        }
+    }
+    printf("\n");
 }
 
 int main() {
-    int nodes = 10;
-    vector<vector<pair<long long int, long long int>>> graph = generate(nodes);
+    int n = 10;
+    vector<vector<pair<long long int, long long int>>> graph = generate(n);
 
     printf("Generated graph:\n");
-    for(long long int i = 0; i < nodes; ++i){
-        for(long long int j = 0; j < graph[i].size(); ++j){
-            if(i < graph[i][j].first){
-                cout<<i<<" "<<graph[i][j].first<<" "<<graph[i][j].second<<"\n";
-            }
-        }
-    }
-    printf("\n\n");
+    printGraph(n, graph);
 
-    // Print the MST using Prim's algorithm
-    primMST(nodes, graph);
+    // Get MST
+    Graph mst = primMST(n, graph);
+
+    // Printing MST (for verification)
+    printf("Edges of MST (node - node : weight):\n");
+    printGraph(n, mst);
 
     return 0;
 }
