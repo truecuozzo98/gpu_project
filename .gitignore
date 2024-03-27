@@ -7,3 +7,7 @@ sequential/.idea
 sequential/cmake-build-debug
 sequential/CMakeLists.txt
 comandi.txt
+cuda/.idea
+cuda/cmake-build-debug-visual-studio
+cuda/cmake-build-debug
+cuda/CMakeLists.txt

@@ -1,7 +1,6 @@
 #include <bits/stdc++.h>
 
 #include <random>
-#include "random_graph_generator.h"
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
 #define MIN_EDGE_WEIGHT 10
