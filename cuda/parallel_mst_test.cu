@@ -6,6 +6,8 @@
 #define BLOCK_SIZE 256
 
 typedef long long int ll;
+typedef pair<long long int, long long int> Edge; // Define edge type
+typedef vector<vector<Edge>> Graph; // Define graph type
 
 __global__ void initializeDistanceVector(ll* distanceVector, int numVertices, int source) {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -61,17 +63,37 @@ __global__ void findClosestNode(int numVertices, ll* distanceVector, bool* mstSe
     }
 }
 
-int main() {
-    int numVertices = 5;
-    int source = 0; // Starting vertex
+void printMST(const Graph& graph, bool* mstSet, int numVertices) {
+    std::cout << "Minimum Spanning Tree (MST) Edges:\n";
+    for(int i = 0; i < numVertices; ++i) {
+        if(mstSet[i]) {
+            for(const auto& edge : graph[i]) {
+                if(mstSet[edge.first]) {
+                    std::cout << "(" << i << " - " << edge.first << ") Weight: " << edge.second << "\n";
+                }
+            }
+        }
+    }
+}
 
-    std::vector<std::vector<std::pair<int, ll>>> graph = {
-        {{1, 2}, {3, 6}},
-        {{0, 2}, {2, 3}, {3, 8}, {4, 5}},
-        {{1, 3}, {4, 7}},
-        {{0, 6}, {1, 8}, {4, 9}},
-        {{1, 5}, {2, 7}, {3, 9}}
-    };
+void printGraph(int n, const Graph& graph) {
+    for (int u = 0; u < n; ++u) {
+        for (const auto& neighbor : graph[u]) {
+            int v = neighbor.first;
+            long long int weight = neighbor.second;
+            cout << u << " - " << v << " : " << weight << endl;
+        }
+    }
+    printf("\n");
+}
+
+int main() {
+    int numVertices = 10;
+    int source = 0;
+    Graph graph = generate(numVertices);
+
+    printf("Generated graph:\n");
+    printGraph(numVertices, graph);
 
     // Copy graph data to device
     int* d_vertices;
@@ -113,7 +135,13 @@ int main() {
         updateDistanceVector<<<(numVertices + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(numVertices, d_vertices, d_weights, d_distanceVector, d_mstSet);
     }
 
+    // Print the MST
+    bool* mstSet = new bool[numVertices];
+    cudaMemcpy(mstSet, d_mstSet, numVertices * sizeof(bool), cudaMemcpyDeviceToHost);
+    printMST(graph, mstSet, numVertices);
+
     // Clean up
+    delete[] mstSet;
     cudaFree(d_distanceVector);
     cudaFree(d_mstSet);
     cudaFree(d_vertices);

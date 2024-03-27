@@ -1,4 +1,6 @@
 #include <bits/stdc++.h>
+
+#include <random>
 #include "random_graph_generator.h"
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
@@ -23,25 +25,27 @@ std::vector<std::vector<std::pair<long long int, long long int>>> generate(int n
         graph[i] = i;
     }   
 
-    random_shuffle(graph.begin(),graph.end());
+    shuffle(graph.begin(),graph.end(), std::mt19937(std::random_device()()));
 
     set<pair<long long int, long long int> > present_edge;
 
     for(long long int i = 1; i < nodes; ++i){
         long long int add = rand() % i;
         long long int weight = rand() % MAX_EDGE_WEIGHT;
-        adjacency[graph[i]].push_back(make_pair(graph[add], weight));
+        adjacency[graph[i]].emplace_back(graph[add], weight);
+        adjacency[graph[add]].emplace_back(graph[i], weight);
         present_edge.insert(make_pair(min(graph[add], graph[i]), max(graph[add], graph[i])));
     }
 
     for(long long int i = 1; i <= extra_edges; ++i){
         long long int weight = rand() % MAX_EDGE_WEIGHT;
-        while(1){
+        while(true){
             long long int node1 = rand() % nodes;
             long long int node2 = rand() % nodes;
             if(node1 == node2) continue;
             if(present_edge.find(make_pair(min(node1, node2), max(node1, node2))) == present_edge.end()){
-                adjacency[node1].push_back(make_pair(node2, weight));
+                adjacency[node1].emplace_back(node2, weight);
+                adjacency[node2].emplace_back(node1, weight);
                 present_edge.insert(make_pair(min(node1, node2), max(node1, node2)));
                 break;
             }

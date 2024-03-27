@@ -3,3 +3,7 @@
 graph.txt
 hello world cuda.txt
 sequential_test.c
+sequential/.idea
+sequential/cmake-build-debug
+sequential/CMakeLists.txt
+comandi.txt

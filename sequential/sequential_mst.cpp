@@ -1,8 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <utility>
-#include <limits.h>
-#include <queue>
+#include <climits>
 #include "random_graph_generator.h"
 
 using namespace std;
@@ -32,18 +31,22 @@ Graph primMST(int n, const Graph& graph) {
     key[0] = 0; // Make key 0 so that this vertex is picked as first vertex
     mst[0] = -1; // First node is always root of MST
 
+
     // The MST will have n vertices
     for (int count = 0; count < n - 1; count++) {
         // Pick the minimum key vertex from the set of vertices not yet included in MST
+
         int u = minWeightVertex(n, key, notInMst);
+
 
         // Add the picked vertex to the MST set
         notInMst[u] = false;
 
         // Update key value and mst index of the adjacent vertices of the picked vertex.
         // Consider only those vertices which are not yet included in MST
+
         for (const Edge& neighbor : graph[u]) {
-            int v = neighbor.first;
+            long long int v = neighbor.first;
             long long int weight = neighbor.second;
             if (notInMst[v] && weight < key[v]) {
                 mst[v] = u;
@@ -52,19 +55,21 @@ Graph primMST(int n, const Graph& graph) {
         }
     }
 
+
     // Construct MST graph from mst array
     Graph mstGraph(n);
     for (int i = 1; i < n; ++i) {
         int u = mst[i];
         mstGraph[u].emplace_back(i, key[i]);
     }
+
     return mstGraph;
 }
 
 void printGraph(int n, const Graph& graph) {
     for (int u = 0; u < n; ++u) {
         for (const auto& neighbor : graph[u]) {
-            int v = neighbor.first;
+            long long int v = neighbor.first;
             long long int weight = neighbor.second;
             cout << u << " - " << v << " : " << weight << endl;
         }
