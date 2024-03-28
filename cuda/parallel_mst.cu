@@ -4,9 +4,9 @@
 #include <set>
 #include <limits>
 #define INF LLONG_MAX
+#define MIN_EDGE_WEIGHT 10
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
-#define MIN_EDGE_WEIGHT 10
 #define BLOCK_SIZE 256
 using namespace std;
 typedef pair<long long int, long long int> Edge; // Define edge type
@@ -24,14 +24,23 @@ void printGraph(int n, const Graph& graph) {
 }
 
 Graph generate(int nodes) {
+    // Use a random device to seed the random number engine
+    random_device rd;
+    // Use the Mersenne Twister engine for randomness
+    mt19937 mt(rd());
+    // Define the distribution for long long integers
+    uniform_int_distribution<long long> random_weight(MIN_EDGE_WEIGHT, MAX_EDGE_WEIGHT);
+    uniform_int_distribution<long long> random_extra_edges(1, ((nodes - 1) * nodes)/2 - (nodes-1));
+    uniform_int_distribution<long long> random_node(0, nodes-1);
+
     Graph adjacency(nodes);
 
-    long long extra_edges = ((nodes - 1) * nodes)/2 - (nodes-1);
-    extra_edges = rand() % (extra_edges + 1);
+    long long extra_edges = random_extra_edges(mt);
 
     if(nodes - 1 + extra_edges > MAX_NODES){
         long long difference = MAX_NODES - (nodes - 1);
-        extra_edges = rand() % (difference + 1);
+        uniform_int_distribution<long long> random_difference(0, difference +1);
+        extra_edges = random_difference(mt);
     }
 
     vector<long long> graph(nodes);
@@ -40,23 +49,24 @@ Graph generate(int nodes) {
         graph[i] = i;
     }
 
-    shuffle(graph.begin(),graph.end(), std::mt19937(std::random_device()()));
+    shuffle(graph.begin(),graph.end(), mt19937(random_device()()));
 
     set<Edge> present_edge;
 
     for(int i = 1; i < nodes; ++i){
-        long long add = rand() % i;
-        long long weight = rand() % MAX_EDGE_WEIGHT;
+        uniform_int_distribution<long long> random_add(0, i - 1);
+        long long add = random_add(mt);
+        long long weight = random_weight(mt);
         adjacency[graph[i]].emplace_back(graph[add], weight);
         adjacency[graph[add]].emplace_back(graph[i], weight);
         present_edge.insert(make_pair(min(graph[add], graph[i]), max(graph[add], graph[i])));
     }
 
     for(int i = 1; i <= extra_edges; ++i){
-        long long weight = rand() % MAX_EDGE_WEIGHT;
+        long long weight = random_weight(mt);
         while(true){
-            long long node1 = rand() % nodes;
-            long long node2 = rand() % nodes;
+            long long node1 = random_node(mt);
+            long long node2 = random_node(mt);
             if(node1 == node2) continue;
             if(present_edge.find(make_pair(min(node1, node2), max(node1, node2))) == present_edge.end()){
                 adjacency[node1].emplace_back(node2, weight);
@@ -115,9 +125,13 @@ void printAdjMatrix(const long long *adjMatrix, int nodes) {
 }
 
 //=========================================CUDA===============================================
-__global__ void findClosestNodeLocally(const long long* matrix, int nodes) {
+__global__ void findClosestNodeLocally(const long long int *matrix, int nodes, long long int *d_result) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
-    long long minWeight = INF;
+    __shared__ long long minWeight;
+    // Initialize minVal to maximum possible long long value
+    if (threadIdx.x == 0) {
+        minWeight = INF;
+    }
     long long smallestNodeIndex = 0;
 
 
@@ -133,7 +147,14 @@ __global__ void findClosestNodeLocally(const long long* matrix, int nodes) {
         }
     }
 
-    printf("Smallest node %lld with weight %lld from thread %d\n", smallestNodeIndex, minWeight, threadIdx.x);
+    //printf("Smallest node %lld with weight %lld from thread %d\n", smallestNodeIndex, minWeight, threadIdx.x);
+    d_result[threadIdx.x] = minWeight;
+
+    /*
+    if (threadIdx.x == 0) {
+        d_result[threadIdx.x] = minWeight;
+    }*/
+
 }
 
 
@@ -150,22 +171,33 @@ int main() {
     printAdjMatrix(adjMatrix, nodes);
 
     // Allocate memory on device
+    int numBlocks = (nodes + BLOCK_SIZE - 1) / BLOCK_SIZE;
     long long* d_matrix;
     size_t matrixSize = nodes * nodes * sizeof(long long);
     cudaMalloc((void **)&d_matrix, matrixSize);
+    long long* d_result;
+    size_t resultSize = nodes * sizeof(long long);
+    cudaMalloc((void **)&d_result, resultSize);
 
     // Copy data from host to device
     cudaMemcpy(d_matrix, adjMatrix, matrixSize, cudaMemcpyHostToDevice);
 
     // Launch kernel with appropriate block and thread configuration
-    int numBlocks = (nodes + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    findClosestNodeLocally<<<numBlocks, nodes>>>(d_matrix, nodes);
+    findClosestNodeLocally<<<numBlocks, nodes>>>(d_matrix, nodes, d_result);
 
     // Wait for kernel to finish
     cudaDeviceSynchronize();
 
+    // Copy result from device to host
+    vector<long long> minValues(nodes);
+    cudaMemcpy(minValues.data(), d_result, resultSize, cudaMemcpyDeviceToHost);
+    for(int i = 0 ; i < nodes ; i++) {
+        printf("Minimum value %lld from node %d \n", minValues[i], i);
+    }
+    
     // Free memory
     free(adjMatrix);
+    cudaFree(d_result);
     cudaFree(d_matrix);
 
     return 0;
