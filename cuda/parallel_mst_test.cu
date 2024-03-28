@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <limits.h>
-#include "random_graph_generator.h"
+//#include "random_graph_generator.h"
 
 #define BLOCK_SIZE 256
 
