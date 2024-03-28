@@ -11,7 +11,6 @@
 using namespace std;
 typedef pair<long long int, long long int> Edge; // Define edge type
 typedef vector<vector<Edge>> Graph; // Define graph type
-typedef vector<vector<long long>> Matrix;
 
 void printGraph(int n, const Graph& graph) {
     for (int u = 0; u < n; ++u) {
@@ -116,7 +115,7 @@ void printAdjMatrix(const long long *adjMatrix, int nodes) {
 }
 
 //=========================================CUDA===============================================
-__global__ void processAdjacencyMatrix(const long long* matrix, int nodes) {
+__global__ void findClosestNodeLocally(const long long* matrix, int nodes) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     long long minWeight = INF;
     long long smallestNodeIndex = 0;
@@ -140,7 +139,6 @@ __global__ void processAdjacencyMatrix(const long long* matrix, int nodes) {
 
 int main() {
     int nodes = 4;
-    int source = 0;
     Graph graph = generate(nodes);
     int edges = totEdges(nodes, graph);
 
@@ -161,15 +159,14 @@ int main() {
 
     // Launch kernel with appropriate block and thread configuration
     int numBlocks = (nodes + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    processAdjacencyMatrix<<<numBlocks, nodes>>>(d_matrix, nodes);
+    findClosestNodeLocally<<<numBlocks, nodes>>>(d_matrix, nodes);
 
     // Wait for kernel to finish
     cudaDeviceSynchronize();
 
     // Free memory
-    cudaFree(d_matrix);
-
     free(adjMatrix);
+    cudaFree(d_matrix);
 
     return 0;
 }
