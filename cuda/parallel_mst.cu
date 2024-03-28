@@ -127,11 +127,11 @@ void printAdjMatrix(const long long *adjMatrix, int nodes) {
 //=========================================CUDA===============================================
 __global__ void findClosestNodeLocally(const long long int *matrix, int nodes, long long int *d_result) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
-    __shared__ long long minWeight;
+    long long minWeight = INF;
     // Initialize minVal to maximum possible long long value
-    if (threadIdx.x == 0) {
+    /*if (threadIdx.x == 0) {
         minWeight = INF;
-    }
+    }*/
     long long smallestNodeIndex = 0;
 
 
@@ -147,8 +147,12 @@ __global__ void findClosestNodeLocally(const long long int *matrix, int nodes, l
         }
     }
 
-    //printf("Smallest node %lld with weight %lld from thread %d\n", smallestNodeIndex, minWeight, threadIdx.x);
+    __syncthreads();
+
+    printf("Smallest node %lld with weight %lld from thread %d\n", smallestNodeIndex, minWeight, threadIdx.x);
     d_result[threadIdx.x] = minWeight;
+    //printf("d_result %lld thread %d\n", d_result[threadIdx.x], threadIdx.x);
+
 
     /*
     if (threadIdx.x == 0) {
@@ -194,7 +198,7 @@ int main() {
     for(int i = 0 ; i < nodes ; i++) {
         printf("Minimum value %lld from node %d \n", minValues[i], i);
     }
-    
+
     // Free memory
     free(adjMatrix);
     cudaFree(d_result);
