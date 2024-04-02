@@ -125,86 +125,6 @@ void printAdjMatrix(const long long *adjMatrix, int nodes) {
 }
 
 //=========================================CUDA===============================================
-__global__ void findClosestNodeLocally(const long long int *matrix, int nodes, long long int *d_localMinNodes,
-                                       const long long int *d_distanceVector, const bool *d_presentInMST) {
-    __shared__ long long int minWeight;
-    __shared__ long long int smallestNodeIndex;
-
-    int tid = threadIdx.x;
-    int bid = blockIdx.x;
-
-    int elementsPerBlock = nodes / gridDim.x;
-
-    int startIndex = bid * elementsPerBlock;
-    int endIndex = (bid + 1) * elementsPerBlock;
-
-    if (tid == 0) {
-        minWeight = INF;
-    }
-
-    __syncthreads();
-
-    for (int i = startIndex + tid; i < endIndex; i += blockDim.x) {
-        // Access and process array elements here
-        printf("Block %d, Thread %d: Element %lld present %d\n", bid, tid, d_distanceVector[i], d_presentInMST[i]);
-        if(!d_presentInMST[i] && d_distanceVector[i] < minWeight) {
-            atomicMin(&minWeight, d_distanceVector[i]);
-            atomicExch(reinterpret_cast<unsigned long long int *>(&smallestNodeIndex), i);
-        }
-    }
-    __syncthreads();
-
-    if (tid == 0) {
-        d_localMinNodes[bid] = smallestNodeIndex;
-        printf("CUDA - from block %d, smallest weight %lld, smallest node %lld\n", bid, minWeight, d_localMinNodes[bid]);
-    }
-
-    for(int i = 0 ; i < BLOCK_SIZE ; i++) {
-        printf("CUDA - local min nodes: %lld\n", d_localMinNodes[i]);
-    }
-
- /*
-     int col = blockIdx.x * blockDim.x + threadIdx.x;
-     long long minWeight = INF;
-     // Initialize minVal to maximum possible long long value
-
-     */
-    /*if (threadIdx.x == 0) {
-        minWeight = INF;
-    }*/
-
-   /* long long smallestNodeIndex = -1;
-
-    if (col < nodes) {
-        for (int row = 0; row < nodes; ++row) {
-            // Access matrix[row][col]
-            long long index = row * nodes + col;
-            //long long element = matrix[index];
-            long long element = d_distanceVector[index];
-            long long relativeIndex = (row * nodes + col) / nodes;
-            printf("index %lld element %lld from block %d\n", index, element, blockIdx.x);
-            if(!d_presentInMST[relativeIndex] && element != 0 && element < minWeight) {
-                minWeight = element;
-                smallestNodeIndex = relativeIndex;
-            }
-        }
-    }
-
-    __syncthreads();
-    d_localMinNodes[threadIdx.x] = smallestNodeIndex;*/
-
-    //printf("Closest node %lld with weight %lld from block %d\n", smallestNodeIndex, minWeight, blockIdx.x);
-    //d_distanceVector[threadIdx.x] = minWeight;
-    //printf("d_result %lld thread %d\n", d_result[threadIdx.x], threadIdx.x);
-
-
-    /*
-    if (threadIdx.x == 0) {
-        d_result[threadIdx.x] = minWeight;
-    }*/
-
-}
-
 void printDistanceVector(const char *s, vector<long long int> distanceVector) {
     printf("%s", (const char *const) s);
     for(int i = 0 ; i < distanceVector.size(); i++){
@@ -254,6 +174,41 @@ __global__ void findMinIndex(
     if (threadIdx.x == 0) {
         *d_minIndex = s_minIndex[0];
         //d_presentInMST[s_minIndex[0]] = true;
+    }
+}
+
+__global__ void findClosestNodeLocally(int nodes, long long int *d_localMinNodes, const long long int *d_distanceVector,
+                                       const bool *d_presentInMST) {
+    __shared__ long long int minWeight;
+    __shared__ long long int smallestNodeIndex;
+
+    int tid = threadIdx.x;
+    int bid = blockIdx.x;
+
+    int elementsPerBlock = nodes / gridDim.x;
+
+    int startIndex = bid * elementsPerBlock;
+    int endIndex = (bid + 1) * elementsPerBlock;
+
+    if (tid == 0) {
+        minWeight = INF;
+    }
+
+    __syncthreads();
+
+    for (int i = startIndex + tid; i < endIndex; i += blockDim.x) {
+        // Access and process array elements here
+        printf("Block %d, Thread %d: Element %lld present %d\n", bid, tid, d_distanceVector[i], d_presentInMST[i]);
+        if(!d_presentInMST[i] && d_distanceVector[i] < minWeight) {
+            atomicMin(&minWeight, d_distanceVector[i]);
+            atomicExch(reinterpret_cast<unsigned long long int *>(&smallestNodeIndex), i);
+        }
+    }
+    __syncthreads();
+
+    if (tid == 0) {
+        d_localMinNodes[bid] = smallestNodeIndex;
+        printf("CUDA - from block %d, smallest weight %lld, smallest node %lld\n", bid, minWeight, d_localMinNodes[bid]);
     }
 }
 
@@ -311,24 +266,18 @@ int main() {
         printf("\n===== STEP NUMBER %d ======\n", i+1);
         printDistanceVector("distance vector pre update: ", distanceVector);
 
+        vector<long long> localMinNodes(BLOCK_SIZE, 0);
+        cudaMemcpy(d_localMinNodes, localMinNodes.data(), BLOCK_SIZE * sizeof(long long), cudaMemcpyHostToDevice);
+
         // Launch kernel with appropriate block and thread configuration
-        findClosestNodeLocally<<<numBlocks, BLOCK_SIZE>>>(
-                d_matrix, nodes, d_localMinNodes, d_distanceVector, d_presentInMST);
+        findClosestNodeLocally<<<numBlocks, BLOCK_SIZE>>>(nodes, d_localMinNodes, d_distanceVector, d_presentInMST);
 
         // Wait for kernel to finish
         cudaDeviceSynchronize();
 
         // Copy result from device to host
-        vector<long long> localMinNodes(BLOCK_SIZE);
-        cudaMemcpy(localMinNodes.data(), d_localMinNodes, BLOCK_SIZE, cudaMemcpyDeviceToHost);
+        cudaMemcpy(localMinNodes.data(), d_localMinNodes, BLOCK_SIZE * sizeof(long long), cudaMemcpyDeviceToHost);
         cudaMemcpy(distanceVector.data(), d_distanceVector, nodeSize, cudaMemcpyDeviceToHost);
-
-
-        for (long long & localMinNode : localMinNodes) {
-            cout << "local min nodes: " << localMinNode << endl;
-        }
-
-
 
         for(int k = 0 ; k < BLOCK_SIZE ; k++) {
             //if(!presentInMST[k]){
