@@ -13,7 +13,7 @@ using namespace std;
 typedef pair<int, int> Edge; // Define edge type
 typedef vector<vector<Edge>> Graph; // Define graph type
 
-void printGraph(const Graph& graph) {
+void print_graph(const Graph& graph) {
     for (int u = 0; u < NODES; ++u) {
         for (const auto& neighbor : graph[u]) {
             int v = neighbor.first;
@@ -80,19 +80,19 @@ Graph generate() {
     return adjacency;
 }
 
-int totEdges(int n, const Graph& graph) {
+int tot_edges(int n, const Graph& graph) {
     int count = 0;
     for (int u = 0; u < n; ++u) {
-        count += graph[u].size();
+        count += (int) graph[u].size();
     }
     return count;
 }
 
-void adjacencyListToMatrix(const vector<vector<pair<int, int>>>& adjList, int* adjMatrix, size_t n) {
+void adjacency_list_to_matrix(const vector<vector<pair<int, int>>>& adjList, int* adj_matrix, size_t n) {
     // Initialize the adjacency matrix with INF initially
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < n; ++j) {
-            adjMatrix[i * n + j] = INF;
+            adj_matrix[i * n + j] = INF;
         }
     }
 
@@ -101,20 +101,20 @@ void adjacencyListToMatrix(const vector<vector<pair<int, int>>>& adjList, int* a
         for (const auto& edge : adjList[i]) {
             int vertex = edge.first;
             int weight = edge.second;
-            adjMatrix[i * n + vertex] = weight;
+            adj_matrix[i * n + vertex] = weight;
         }
     }
 
     // Diagonal elements should be 0 (no self-loops)
     for (size_t i = 0; i < n; ++i) {
-        adjMatrix[i * n + i] = 0;
+        adj_matrix[i * n + i] = 0;
     }
 }
 
-void printAdjMatrix(const int *adjMatrix) {
+void print_adj_matrix(const int *adj_matrix) {
     for (size_t i = 0; i < NODES; ++i) {
         for (size_t j = 0; j < NODES; ++j) {
-            int weight = adjMatrix[i * NODES + j];
+            int weight = adj_matrix[i * NODES + j];
             if (weight == INF) {
                 cout << "INF\t";
             } else {
@@ -126,50 +126,44 @@ void printAdjMatrix(const int *adjMatrix) {
 }
 
 //=========================================CUDA===============================================
-void printDistanceVector(const char *s, vector<int> distanceVector) {
-    printf("%s", (const char *const) s);
-    for(int i = 0 ; i < distanceVector.size(); i++){
-        if(i == distanceVector.size() - 1){
-            printf("%d", distanceVector[i]);
+void print_distance_vector(vector<int> distance_vector) {
+    printf("distance vector: ");
+    for(int i = 0 ; i < distance_vector.size(); i++){
+        if(i == distance_vector.size() - 1){
+            printf("%d", distance_vector[i]);
         } else {
-            printf("%d, ", distanceVector[i]);
+            printf("%d, ", distance_vector[i]);
         }
     }
     printf("\n\n");
 }
 
 
-__global__ void localClosestNode(const int *d_distanceVector, int *d_minWeights, int *d_minNodes,
-                                 const bool *d_presentInMST) {
-    __shared__ int minWeight[NODES];
-    __shared__ int smallestNodeIndex[NODES];
+__global__ void local_closest_node(const int *d_distance_vector, int *d_min_weights, int *d_minNodes,
+                                 const bool *d_present_in_mst) {
+    __shared__ int min_weight[NODES];
+    __shared__ int closest_node[NODES];
 
     int tid = threadIdx.x;
-    int bid = blockIdx.x;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Load data into shared memory
-    minWeight[tid] = d_distanceVector[index];
-    smallestNodeIndex[tid] = index;
+    min_weight[tid] = d_distance_vector[index];
+    closest_node[tid] = index;
     __syncthreads();
 
-    /*for (int i = 0 ; i<NODES; i++) {
-        printf("node: %d present: %d\n", i, d_presentInMST[i]);
-    }*/
-
     // Ignore the elements that are already present in MST
-    if (d_presentInMST[index]) {
-        minWeight[tid] = INF; // Set to maximum value to avoid selection
+    if (d_present_in_mst[index]) {
+        min_weight[tid] = INF; // Set to maximum value to avoid selection
     }
     __syncthreads();
 
     // Reduction within the block
     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) {
-            printf("block %d thread %d tid+s %d index %d\n", bid, tid, tid+s, index);
-            if (minWeight[tid + s] < minWeight[tid]) {
-                minWeight[tid] = minWeight[tid + s];
-                smallestNodeIndex[tid] = smallestNodeIndex[tid + s];
+            if (min_weight[tid + s] < min_weight[tid]) {
+                min_weight[tid] = min_weight[tid + s];
+                closest_node[tid] = closest_node[tid + s];
             }
         }
         __syncthreads();
@@ -177,81 +171,70 @@ __global__ void localClosestNode(const int *d_distanceVector, int *d_minWeights,
 
     // Store the minimum value and its index in global memory
     if (tid == 0) {
-        d_minWeights[blockIdx.x] = minWeight[0];
-        d_minNodes[blockIdx.x] = smallestNodeIndex[0];
-        printf("local - block: %d, min_node: %d, min_weight: %d\n", bid, smallestNodeIndex[0], minWeight[0]);
+        d_min_weights[blockIdx.x] = min_weight[0];
+        d_minNodes[blockIdx.x] = closest_node[0];
     }
 }
 
-
-__global__ void globalClosestNode(int *min_val, int *min_index, bool *d_presentInMST/*, vector<int> d_mst*/) {
-    __shared__ int s_minIndex[NODES];
-    __shared__ int s_minValue[NODES];
+__global__ void global_closest_node(int *min_val, int *min_index, bool *d_present_in_mst) {
+    __shared__ int s_min_node[NODES];
+    __shared__ int s_min_weight[NODES];
 
     int tid = threadIdx.x;
 
     // Load data into shared memory
-    s_minIndex[tid] = min_index[tid];
-    s_minValue[tid] = min_val[tid];
+    s_min_node[tid] = min_index[tid];
+    s_min_weight[tid] = min_val[tid];
 
     __syncthreads();
 
     for (int s = NODES / 2; s > 0; s /= 2) {
         if (tid < s) {
-            if (s_minValue[tid + s] < s_minValue[tid] && s_minValue[tid+s] != 0) {
-                s_minValue[tid] = s_minValue[tid + s];
-                s_minIndex[tid] = s_minIndex[tid + s /*+ (threadIdx.x * blockDim.x)*/];
+            if (s_min_weight[tid + s] < s_min_weight[tid] && s_min_weight[tid+s] != 0) {
+                s_min_weight[tid] = s_min_weight[tid + s];
+                s_min_node[tid] = s_min_node[tid + s];
             }
         }
         __syncthreads();
     }
 
     if (tid == 0) {
-        min_val[0] = s_minValue[0];
-        min_index[0] = s_minIndex[0];
-        //d_presentInMST[s_minValue[0]] = true;
+        min_val[0] = s_min_weight[0];
+        min_index[0] = s_min_node[0];
+        d_present_in_mst[s_min_node[0]] = true;
     }
 }
 
 int main() {
     int source = 0;
     Graph graph = generate();
-    int edges = totEdges(NODES, graph);
+    int edges = tot_edges(NODES, graph);
 
-    vector<int> distanceVector(NODES, INF); // Key values used to pick minimum weight edge in cut
-    distanceVector[source] = 0;
+    vector<int> distance_vector(NODES, INF); // Key values used to pick minimum weight edge in cut
+    distance_vector[source] = 0;
     vector<int> mst(NODES); // Array to store constructed MST parent, MST has numVertices-1 edges
-    auto *presentInMST = new bool[NODES]; // To represent set of vertices not yet included in MST
-    for (int i = 0; i < NODES; i++) {
-        if(i == source) {
-            presentInMST[i] = true;
-        }
-        presentInMST[i] = false;
-    }
+    auto *present_in_mst = new bool[NODES]; // To represent set of vertices not yet included in MST
 
     printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
-    printGraph(graph);
+    print_graph(graph);
 
-    auto* adjMatrix = new int[NODES * NODES];
-    adjacencyListToMatrix(graph, adjMatrix, NODES);
-    printAdjMatrix(adjMatrix);
+    auto* adj_matrix = new int[NODES * NODES];
+    adjacency_list_to_matrix(graph, adj_matrix, NODES);
+    print_adj_matrix(adj_matrix);
 
     // Allocate memory on device
     int numBlocks = (NODES + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    int* d_matrix; //partitioned adjacency matrix
-    size_t matrixSize = NODES * NODES * sizeof(int);
-    cudaMalloc((void **)&d_matrix, matrixSize);
+    int* d_matrix;      //partitioned adjacency matrix
+    cudaMalloc((void **)&d_matrix, NODES * NODES * sizeof(int));
 
-    int* d_distanceVector; //vector distance: distance from the MST to each node
-    size_t nodeSize = NODES * sizeof(int);
-    cudaMalloc((void **)&d_distanceVector, nodeSize);
-    cudaMemcpy(d_distanceVector, distanceVector.data(), nodeSize, cudaMemcpyHostToDevice);
+    int* d_distance_vector; //vector distance: distance from the MST to each node
+    cudaMalloc((void **)&d_distance_vector, NODES * sizeof(int));
 
-    bool* d_presentInMST;
-    cudaMalloc((void **)&d_presentInMST, nodeSize);
+    bool* d_present_in_mst;
+    cudaMalloc((void **)&d_present_in_mst, NODES * sizeof(int));
 
-    int* d_minWeights;
-    cudaMalloc((void **)&d_minWeights, BLOCK_SIZE * sizeof (int));
+    int* d_min_weights;
+    cudaMalloc((void **)&d_min_weights, BLOCK_SIZE * sizeof (int));
 
     int* d_minNodes;
     cudaMalloc((void **)&d_minNodes, BLOCK_SIZE * sizeof (int));
@@ -259,101 +242,66 @@ int main() {
     int *d_minIndex;
     cudaMalloc((void**)&d_minIndex, sizeof(int));
 
-    vector<int> d_mst(NODES);
-    cudaMalloc((void **)&d_mst, nodeSize);
+    int *d_mst;
+    cudaMalloc((void **)&d_mst, NODES * sizeof(int));
 
     // Copy data from host to device
-    cudaMemcpy(d_matrix, adjMatrix, matrixSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_matrix, adj_matrix, NODES * NODES * sizeof(int), cudaMemcpyHostToDevice);
 
-    for (int i = 0; i < NODES - 1; i++) {
-        printf("\n===== STEP NUMBER %d ======\n", i+1);
-        printDistanceVector("distance vector pre update: ", distanceVector);
+    for (int i = 0; i < NODES; i++) {
+        printf("\n===== STEP NUMBER %d ======\n", i + 1);
+
+        cudaMemcpy(d_distance_vector, distance_vector.data(), NODES * sizeof(int), cudaMemcpyHostToDevice);
+        print_distance_vector(distance_vector);
 
         // Launch kernel with appropriate block and thread configuration
-        localClosestNode<<<numBlocks, BLOCK_SIZE>>>(d_distanceVector, d_minWeights, d_minNodes, d_presentInMST);
-        // Wait for kernel to finish
-        cudaDeviceSynchronize();
+        local_closest_node<<<numBlocks, BLOCK_SIZE>>>(d_distance_vector, d_min_weights, d_minNodes, d_present_in_mst);
+        cudaDeviceSynchronize();        // Wait for kernel to finish
 
-        globalClosestNode<<<1, BLOCK_SIZE>>>(d_minWeights, d_minNodes, d_presentInMST);
+        global_closest_node<<<1, BLOCK_SIZE>>>(d_min_weights, d_minNodes, d_present_in_mst);
         cudaDeviceSynchronize();
 
         int final_min_val, final_min_index;
-        cudaMemcpy(&final_min_val, d_minWeights, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&final_min_val, d_min_weights, sizeof(int), cudaMemcpyDeviceToHost);
         cudaMemcpy(&final_min_index, d_minNodes, sizeof(int), cudaMemcpyDeviceToHost);
-        //cudaMemcpy(presentInMST, d_presentInMST, NODES * sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(present_in_mst,d_present_in_mst, NODES * sizeof(int), cudaMemcpyDeviceToHost);
 
         printf("Minimum value: %d, Index: %d\n", final_min_val, final_min_index);
-        presentInMST[final_min_index] = true;
         for(int j = 0 ; j < NODES ; j++) {
-            if(presentInMST[j]){
+            if(present_in_mst[j]){
                 printf("Node %d is present in MST\n", j);
             }
         }
-
-        cudaMemcpy(d_presentInMST, presentInMST, NODES * sizeof(int), cudaMemcpyHostToDevice);
-
-        /*
-        // Launch kernel to find index of minimum value
-        globalClosestNode<<<numBlocks, BLOCK_SIZE>>>(
-                d_distanceVector, NODES, d_minIndex, d_presentInMST, d_mst);
-        cudaDeviceSynchronize();
-
-        int final_min_val, final_min_index;
-        cudaMemcpy(&final_min_val, d_minWeights, sizeof(int), cudaMemcpyDeviceToHost);
-        cudaMemcpy(&final_min_index, d_minNodes, sizeof(int), cudaMemcpyDeviceToHost);
-        */
-
-        /*
-        printf("Minimum value: %d, Index: %d\n", final_min_val, final_min_index);
-
-        // Copy result back to host
-        int minIndex = -1;
-        cudaMemcpy(&minIndex, d_minIndex, sizeof(int), cudaMemcpyDeviceToHost);
-        presentInMST[minIndex] = true;
-        cudaMemcpy(d_presentInMST, presentInMST, NODES * sizeof(int), cudaMemcpyHostToDevice);
-
-        printf("Index of minimum value: %d\n", minIndex);
-        for(int j = 0 ; j < NODES ; j++) {
-            if(presentInMST[j]){
-                printf("Node %d is present in MST\n", j);
-            }
-        }*/
 
         //TODO: parallel version
         for (const Edge& neighbor : graph[final_min_index]) {
             int v = neighbor.first;
             int weight = neighbor.second;
-            if (!presentInMST[v] && weight < distanceVector[v]) {
+            if (!present_in_mst[v] && weight < distance_vector[v]) {
                 mst[v] = final_min_index;
-                distanceVector[v] = weight;
+                distance_vector[v] = weight;
             }
         }
-        cudaMemcpy(d_distanceVector, distanceVector.data(), NODES * sizeof(int), cudaMemcpyHostToDevice);
-
-        printDistanceVector("distance vector post update: ", distanceVector);
     }
 
+    /*
     // Construct MST graph from mst array
     Graph mstGraph(NODES);
     for (int i = 0 ; i < NODES; ++i) {
         int u = mst[i];
-        mstGraph[u].emplace_back(i, distanceVector[i]);
+        mstGraph[u].emplace_back(i, distance_vector[i]);
     }
-    printGraph(mstGraph);
-
-    /*
-    printf("Index of minimum value: %d\n", minIndex);
-    for(int i = 0 ; i < NODES ; i++) {
-        if(presentInMST[i]){
-            printf("Node %d is present in MST\n", i);
-        }
-    }*/
+    print_graph(mstGraph);
+    */
 
     // Free memory
-    free(adjMatrix);
-    free(presentInMST);
-    //cudaFree(d_result);
+    free(adj_matrix);
     cudaFree(d_matrix);
-
+    cudaFree(d_distance_vector);
+    cudaFree(d_present_in_mst);
+    cudaFree(d_min_weights);
+    cudaFree(d_minNodes);
+    cudaFree(d_minIndex);
+    cudaFree(d_mst);
     return 0;
 }
