@@ -11,3 +11,4 @@ cuda/.idea
 cuda/cmake-build-debug-visual-studio
 cuda/cmake-build-debug
 cuda/CMakeLists.txt
+cuda/test.cu
