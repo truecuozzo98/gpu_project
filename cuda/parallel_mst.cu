@@ -8,7 +8,7 @@
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
 #define BLOCK_SIZE 2
-#define NODES 4
+#define NODES 16
 using namespace std;
 typedef pair<int, int> Edge; // Define edge type
 typedef vector<vector<Edge>> Graph; // Define graph type
@@ -18,7 +18,8 @@ void print_graph(const Graph& graph) {
         for (const auto& neighbor : graph[u]) {
             int v = neighbor.first;
             int weight = neighbor.second;
-            cout << u << " - " << v << " : " << weight << endl;
+            //cout << u << " - " << v << " : " << weight << endl;
+            cout << u << " " << v << " " << weight << endl;
         }
     }
     printf("\n");
@@ -173,6 +174,7 @@ __global__ void local_closest_node(const int *d_distance_vector, int *d_min_weig
     if (tid == 0) {
         d_min_weights[blockIdx.x] = min_weight[0];
         d_minNodes[blockIdx.x] = closest_node[0];
+        printf("local - block: %d, min weight : %d, min_node: %d\n", blockIdx.x, min_weight[0], closest_node[0]);
     }
 }
 
@@ -212,7 +214,7 @@ int main() {
 
     vector<int> distance_vector(NODES, INF); // Key values used to pick minimum weight edge in cut
     distance_vector[source] = 0;
-    vector<int> mst(NODES); // Array to store constructed MST parent, MST has numVertices-1 edges
+    vector<int> mst(NODES, -1); // Array to store constructed MST parent, MST has numVertices-1 edges
     auto *present_in_mst = new bool[NODES]; // To represent set of vertices not yet included in MST
 
     printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
@@ -220,7 +222,7 @@ int main() {
 
     auto* adj_matrix = new int[NODES * NODES];
     adjacency_list_to_matrix(graph, adj_matrix, NODES);
-    print_adj_matrix(adj_matrix);
+    //print_adj_matrix(adj_matrix);
 
     // Allocate memory on device
     int numBlocks = (NODES + BLOCK_SIZE - 1) / BLOCK_SIZE;
@@ -258,7 +260,7 @@ int main() {
         local_closest_node<<<numBlocks, BLOCK_SIZE>>>(d_distance_vector, d_min_weights, d_minNodes, d_present_in_mst);
         cudaDeviceSynchronize();        // Wait for kernel to finish
 
-        global_closest_node<<<1, BLOCK_SIZE>>>(d_min_weights, d_minNodes, d_present_in_mst);
+        global_closest_node<<<1, NODES>>>(d_min_weights, d_minNodes, d_present_in_mst);
         cudaDeviceSynchronize();
 
         int final_min_val, final_min_index;
@@ -283,16 +285,15 @@ int main() {
             }
         }
     }
-
-    /*
+    
     // Construct MST graph from mst array
     Graph mstGraph(NODES);
-    for (int i = 0 ; i < NODES; ++i) {
+    for (int i = 1 ; i < NODES; ++i) {
         int u = mst[i];
         mstGraph[u].emplace_back(i, distance_vector[i]);
     }
     print_graph(mstGraph);
-    */
+
 
     // Free memory
     free(adj_matrix);
