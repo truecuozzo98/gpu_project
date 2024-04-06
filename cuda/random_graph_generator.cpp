@@ -65,18 +65,7 @@ Graph generate(int nodes) {
             }
         }
     }
-/*
-    //write to file
-    ofstream graph_file("graph.txt");
-    for(long long int i = 0; i < NODES; ++i){
-        for(long long int j = 0; j < adjacency[i].size(); ++j){
-            //if(i < adjacency[i][j].first){
-                graph_file<<i<<" "<<adjacency[i][j].first<<" "<<adjacency[i][j].second<<"\n";
-            //}
-        }
-    }
-    graph_file.close();
-*/
+
     return adjacency;
 }
 
@@ -99,12 +88,51 @@ int tot_edges(const Graph& graph, int n) {
     return count;
 }
 
-/*
-int main() {
-    Graph graph = generate();
-    int edges = tot_edges(NODES, graph);
-    printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
-    print_graph(graph);
-    return 0;
+void adjacency_list_to_matrix(const Graph& adjList, int* adj_matrix, size_t n) {
+    // Initialize the adjacency matrix with INF initially
+    for (size_t i = 0; i < n; ++i) {
+        for (size_t j = 0; j < n; ++j) {
+            adj_matrix[i * n + j] = INT_MAX;
+        }
+    }
+
+    // Populate the adjacency matrix with appropriate values from the adjacency list
+    for (size_t i = 0; i < n; ++i) {
+        for (const auto& edge : adjList[i]) {
+            int vertex = edge.first;
+            int weight = edge.second;
+            adj_matrix[i * n + vertex] = weight;
+        }
+    }
+
+    // Diagonal elements should be 0 (no self-loops)
+    for (size_t i = 0; i < n; ++i) {
+        adj_matrix[i * n + i] = 0;
+    }
 }
-*/
+
+void print_adj_matrix(const int *adj_matrix, int nodes) {
+    for (size_t i = 0; i < nodes; ++i) {
+        for (size_t j = 0; j < nodes; ++j) {
+            int weight = adj_matrix[i * nodes + j];
+            if (weight == INT_MAX) {
+                cout << "INF\t";
+            } else {
+                cout << weight << "\t";
+            }
+        }
+        cout << endl;
+    }
+}
+
+void print_distance_vector(vector<int> distance_vector) {
+    printf("distance vector: ");
+    for(int i = 0 ; i < distance_vector.size(); i++){
+        if(i == distance_vector.size() - 1){
+            printf("%d", distance_vector[i]);
+        } else {
+            printf("%d, ", distance_vector[i]);
+        }
+    }
+    printf("\n\n");
+}

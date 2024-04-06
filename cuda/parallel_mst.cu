@@ -1,4 +1,3 @@
-#include <iostream>
 #include <random>
 #include <vector>
 #include <limits>
@@ -7,6 +6,8 @@
 #include <thrust/scan.h>
 #include <thrust/extrema.h>
 #include "random_graph_generator.h"
+#include "sequential_mst.h"
+
 #define INF INT_MAX
 #define MIN_EDGE_WEIGHT 10
 #define MAX_EDGE_WEIGHT 100
@@ -16,56 +17,6 @@
 using namespace std;
 typedef pair<int, int> Edge; // Define edge type
 typedef vector<vector<Edge>> Graph; // Define graph type
-
-void adjacency_list_to_matrix(const vector<vector<pair<int, int>>>& adjList, int* adj_matrix, size_t n) {
-    // Initialize the adjacency matrix with INF initially
-    for (size_t i = 0; i < n; ++i) {
-        for (size_t j = 0; j < n; ++j) {
-            adj_matrix[i * n + j] = INF;
-        }
-    }
-
-    // Populate the adjacency matrix with appropriate values from the adjacency list
-    for (size_t i = 0; i < n; ++i) {
-        for (const auto& edge : adjList[i]) {
-            int vertex = edge.first;
-            int weight = edge.second;
-            adj_matrix[i * n + vertex] = weight;
-        }
-    }
-
-    // Diagonal elements should be 0 (no self-loops)
-    for (size_t i = 0; i < n; ++i) {
-        adj_matrix[i * n + i] = 0;
-    }
-}
-
-void print_adj_matrix(const int *adj_matrix) {
-    for (size_t i = 0; i < NODES; ++i) {
-        for (size_t j = 0; j < NODES; ++j) {
-            int weight = adj_matrix[i * NODES + j];
-            if (weight == INF) {
-                cout << "INF\t";
-            } else {
-                cout << weight << "\t";
-            }
-        }
-        cout << endl;
-    }
-}
-
-//=========================================CUDA===============================================
-void print_distance_vector(vector<int> distance_vector) {
-    printf("distance vector: ");
-    for(int i = 0 ; i < distance_vector.size(); i++){
-        if(i == distance_vector.size() - 1){
-            printf("%d", distance_vector[i]);
-        } else {
-            printf("%d, ", distance_vector[i]);
-        }
-    }
-    printf("\n\n");
-}
 
 __global__ void local_closest_node(const int *d_distance_vector, int *d_min_weights, int *d_min_nodes,
                                  const bool *d_present_in_mst) {
@@ -118,14 +69,20 @@ __global__ void update_distances(
 }
 
 int main() {
-    //HOST MEMORY
-    int numBlocks = (NODES + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    int source = 0;
     Graph graph = generate(NODES);
     int edges = tot_edges(graph, NODES);
     printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
     print_graph(graph, NODES);
+
+    //=====SEQUENTIAL PRIM MST=====
+    Graph sequential_MST = sequential_prim_MST(graph, NODES);
+    print_graph(sequential_MST, NODES);
+
+
+    //=====PARALLEL PRIM MST=====
+    //HOST MEMORY
+    int numBlocks = (NODES + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int source = 0;
 
     vector<int> distance_vector(NODES, INF);
     distance_vector[source] = 0;
@@ -135,7 +92,7 @@ int main() {
 
     int *adj_matrix = new int[NODES * NODES];
     adjacency_list_to_matrix(graph, adj_matrix, NODES);
-    //print_adj_matrix(adj_matrix);
+    //print_adj_matrix(adj_matrix, NODES);
 
     //DEVICE MEMORY
     int* d_matrix;      //partitioned adjacency matrix
@@ -198,13 +155,13 @@ int main() {
     cudaMemcpy(mst.data(), d_mst, NODES * sizeof(int), cudaMemcpyDeviceToHost);
 
     // Construct MST graph from mst array
-    Graph mstGraph(NODES);
+    Graph mst_graph(NODES);
     for (int i = 1 ; i < NODES; ++i) {
         int u = mst[i];
-        mstGraph[u].emplace_back(i, distance_vector[i]);
+        mst_graph[u].emplace_back(i, distance_vector[i]);
     }
     printf("\nThe MST is:\n");
-    print_graph(mstGraph, NODES);
+    print_graph(mst_graph, NODES);
 
     // Free memory
     delete[] adj_matrix;
