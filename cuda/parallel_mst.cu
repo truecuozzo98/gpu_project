@@ -1,98 +1,21 @@
 #include <iostream>
 #include <random>
 #include <vector>
-#include <set>
 #include <limits>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 #include <thrust/scan.h>
 #include <thrust/extrema.h>
+#include "random_graph_generator.h"
 #define INF INT_MAX
 #define MIN_EDGE_WEIGHT 10
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
-#define BLOCK_SIZE 512
-#define NODES 2048
+#define BLOCK_SIZE 4
+#define NODES 8
 using namespace std;
 typedef pair<int, int> Edge; // Define edge type
 typedef vector<vector<Edge>> Graph; // Define graph type
-
-void print_graph(const Graph& graph) {
-    for (int u = 0; u < NODES; ++u) {
-        for (const auto& neighbor : graph[u]) {
-            int v = neighbor.first;
-            int weight = neighbor.second;
-            cout << u << " " << v << " " << weight << endl;
-            //cout << u << " - " << v << " : " << weight << endl;
-        }
-    }
-    printf("\n");
-}
-
-Graph generate() {
-    printf("generating graph...\n");
-    // Use a random device to seed the random number engine
-    random_device rd;
-    // Use the Mersenne Twister engine for randomness
-    mt19937 mt(rd());
-    // Define the distribution for integers
-    uniform_int_distribution<int> random_weight(MIN_EDGE_WEIGHT, MAX_EDGE_WEIGHT);
-    uniform_int_distribution<int> random_extra_edges(1, ((NODES - 1) * NODES)/2 - (NODES-1));
-    uniform_int_distribution<int> random_node(0, NODES-1);
-
-    Graph adjacency(NODES);
-
-    int extra_edges = random_extra_edges(mt);
-
-    if(NODES - 1 + extra_edges > MAX_NODES){
-        int difference = MAX_NODES - (NODES - 1);
-        uniform_int_distribution<int> random_difference(0, difference +1);
-        extra_edges = random_difference(mt);
-    }
-
-    vector<int> graph(NODES);
-
-    for(int i = 0; i < NODES; ++i){
-        graph[i] = i;
-    }
-
-    shuffle(graph.begin(),graph.end(), mt19937(random_device()()));
-
-    set<Edge> present_edge;
-
-    for(int i = 1; i < NODES; ++i){
-        uniform_int_distribution<int> random_add(0, i - 1);
-        int add = random_add(mt);
-        int weight = random_weight(mt);
-        adjacency[graph[i]].emplace_back(graph[add], weight);
-        adjacency[graph[add]].emplace_back(graph[i], weight);
-        present_edge.insert(make_pair(min(graph[add], graph[i]), max(graph[add], graph[i])));
-    }
-
-    for(int i = 1; i <= extra_edges; ++i){
-        int weight = random_weight(mt);
-        while(true){
-            int node1 = random_node(mt);
-            int node2 = random_node(mt);
-            if(node1 == node2) continue;
-            if(present_edge.find(make_pair(min(node1, node2), max(node1, node2))) == present_edge.end()){
-                adjacency[node1].emplace_back(node2, weight);
-                adjacency[node2].emplace_back(node1, weight);
-                present_edge.insert(make_pair(min(node1, node2), max(node1, node2)));
-                break;
-            }
-        }
-    }
-    return adjacency;
-}
-
-int tot_edges(int n, const Graph& graph) {
-    int count = 0;
-    for (int u = 0; u < n; ++u) {
-        count += (int) graph[u].size();
-    }
-    return count;
-}
 
 void adjacency_list_to_matrix(const vector<vector<pair<int, int>>>& adjList, int* adj_matrix, size_t n) {
     // Initialize the adjacency matrix with INF initially
@@ -194,16 +117,15 @@ __global__ void update_distances(
     }
 }
 
-
 int main() {
     //HOST MEMORY
     int numBlocks = (NODES + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     int source = 0;
-    Graph graph = generate();
-    int edges = tot_edges(NODES, graph);
+    Graph graph = generate(NODES);
+    int edges = tot_edges(graph, NODES);
     printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
-    //print_graph(graph);
+    print_graph(graph, NODES);
 
     vector<int> distance_vector(NODES, INF);
     distance_vector[source] = 0;
@@ -282,7 +204,7 @@ int main() {
         mstGraph[u].emplace_back(i, distance_vector[i]);
     }
     printf("\nThe MST is:\n");
-    //print_graph(mstGraph);
+    print_graph(mstGraph, NODES);
 
     // Free memory
     delete[] adj_matrix;

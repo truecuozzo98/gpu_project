@@ -14,3 +14,4 @@ cuda/CMakeLists.txt
 cuda/test.cu
 sequential/.vs
 sequential/out
+graph
