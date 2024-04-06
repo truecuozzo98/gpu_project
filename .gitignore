@@ -15,3 +15,6 @@ cuda/test.cu
 sequential/.vs
 sequential/out
 graph
+.idea
+cmake-build-debug-visual-studio
+cmake-build-debug

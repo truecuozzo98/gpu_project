@@ -20,7 +20,11 @@ Graph generate(int nodes) {
     // Define the distribution for integers
     uniform_int_distribution<int> random_weight(MIN_EDGE_WEIGHT, MAX_EDGE_WEIGHT);
     uniform_int_distribution<int> random_extra_edges(1, ((nodes - 1) * nodes)/2 - (nodes-1));
+    //uniform_int_distribution<int> random_extra_edges(((nodes - 1) * nodes)/2 - (nodes-1), ((nodes - 1) * nodes)/2 - (nodes-1));
+
     uniform_int_distribution<int> random_node(0, nodes-1);
+
+
 
     Graph adjacency(nodes);
 

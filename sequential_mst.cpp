@@ -20,10 +20,10 @@ int min_weight_vertex(int n, vector<int>& key, vector<bool>& not_in_mst) {
 }
 
 // Function to implement Prim's MST algorithm and return MST as a graph
-Graph sequential_prim_MST(const Graph& graph, int n) {
+vector<int> sequential_prim_MST(const Graph& graph, int n) {
+    vector<int> mst(n, -1); // Array to store constructed MST parent
     vector<int> key(n, INT_MAX); // Key values used to pick minimum weight edge in cut
     vector<bool> not_in_mst(n, true); // To represent set of vertices not yet included in MST
-    vector<int> mst(n, -1); // Array to store constructed MST parent
 
     key[0] = 0; // Make key 0 so that this vertex is picked as first vertex
     mst[0] = -1; // First node is always root of MST
@@ -47,14 +47,5 @@ Graph sequential_prim_MST(const Graph& graph, int n) {
             }
         }
     }
-
-    //TODO: rimuovere??
-    // Construct MST graph from mst array
-    Graph mst_graph(n);
-    for (int i = 1; i < n; ++i) {
-        int u = mst[i];
-        mst_graph[u].emplace_back(i, key[i]);
-    }
-
-    return mst_graph;
+    return mst;
 }
