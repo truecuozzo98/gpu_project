@@ -11,7 +11,7 @@
 #define MIN_EDGE_WEIGHT 10
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
-#define BLOCK_SIZE 4
+#define BLOCK_SIZE 2
 #define NODES 8
 using namespace std;
 typedef pair<int, int> Edge; // Define edge type
@@ -51,51 +51,95 @@ __global__ void local_closest_node(const int *d_distance_vector, int *d_min_weig
     if (tid == 0) {
         d_min_weights[blockIdx.x] = min_weight[0];
         d_min_nodes[blockIdx.x] = closest_node[0];
+
+        //printf("local, bid %d min w %d, min n %d\n", blockIdx.x, min_weight[0], closest_node[0]);
     }
 }
 
 __global__ void update_distances(
-        const int *d_matrix, int *d_mst, int *d_distance_vector, int final_min_node, const bool *d_present_in_mst) {
+        const int *d_matrix, int *d_mst, int *d_distance_vector, int final_min_node, bool *d_present_in_mst) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid < NODES && tid != final_min_node && !d_present_in_mst[tid]) {
         int index = final_min_node * NODES + tid; // Assuming d_matrix is a flattened 2D array
         if (d_matrix[index] < d_distance_vector[tid]) {
             d_mst[tid] = final_min_node;
             d_distance_vector[tid] = d_matrix[index];
+            d_present_in_mst[final_min_node] = true;
         }
     }
 }
 
 void parallel_mst(int num_blocks, int nBytes, int *d_matrix, int *d_mst, int *d_distance_vector, int *d_min_weights,
-                  int *d_min_nodes, thrust::device_vector<bool> d_present_in_mst) {
+                  int *d_min_nodes, bool *d_present_in_mst) {
+    vector<int> distance_vector(NODES);
     for (int i = 0; i < NODES; i++) {
+
+        cudaMemcpy(distance_vector.data(), d_distance_vector, NODES * sizeof(int), cudaMemcpyDeviceToHost);
+        print_distance_vector(distance_vector);
+
         // Launch kernel with appropriate block and thread configuration
         local_closest_node<<<num_blocks, BLOCK_SIZE, nBytes>>>(
-                d_distance_vector, d_min_weights, d_min_nodes,
-                thrust::raw_pointer_cast(d_present_in_mst.data()));
+                d_distance_vector, d_min_weights, d_min_nodes, d_present_in_mst);
         cudaDeviceSynchronize();        // Wait for kernel to finish
 
+/*
         //Find global closest node from the local solutions
         thrust::device_ptr<int> thrust_weights_ptr(d_min_weights);
         thrust::device_ptr<int> thrust_nodes_ptr = thrust::device_pointer_cast(d_min_nodes);
         thrust::device_ptr<int> min_ptr = thrust::min_element(
                 thrust::device, thrust_weights_ptr, thrust_weights_ptr + num_blocks);
 
-        int final_min_node = thrust_nodes_ptr[min_ptr - thrust_weights_ptr];
-        d_present_in_mst[final_min_node] = true;
+
+        //int final_min_node = thrust_nodes_ptr[min_ptr - thrust_weights_ptr];*/
+        int *h_min_weights = new int[num_blocks];
+        int *h_min_nodes = new int[num_blocks];
+
+        cudaMemcpy(h_min_weights, d_min_weights, num_blocks * sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_min_nodes, d_min_nodes, num_blocks * sizeof(int), cudaMemcpyDeviceToHost);
+
+
+        int global_min_weight = h_min_weights[0];
+        int global_min_node = h_min_nodes[0];
+
+        for (int k = 1; k < num_blocks; ++k) {
+            if (h_min_weights[k] < global_min_weight) {
+                global_min_weight = h_min_weights[k];
+                global_min_node = h_min_nodes[k];
+            }
+        }
+        printf("step %d, min weight %d min node %d\n", i, global_min_weight, global_min_node);
+
+
+        //TODO: change
+        //int final_min_node = i;
+        //d_present_in_mst[final_min_node] = true;
         update_distances<<<num_blocks, BLOCK_SIZE>>>(
-                d_matrix, d_mst, d_distance_vector, final_min_node,
-                thrust::raw_pointer_cast(d_present_in_mst.data()));
+                d_matrix, d_mst, d_distance_vector, global_min_node,
+                d_present_in_mst);
 
         cudaDeviceSynchronize();
     }
+
+
+    int mst[NODES];
+    //int distance_vector[NODES];
+    cudaMemcpy(mst, d_mst, NODES * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(distance_vector.data(), d_distance_vector, NODES * sizeof(int), cudaMemcpyDeviceToHost);
+
+
+    Graph mstGraph(NODES);
+    for (int i = 1 ; i < NODES; ++i) {
+        int u = mst[i];
+        mstGraph[u].emplace_back(i, distance_vector[i]);
+    }
+    print_graph(mstGraph, NODES);
 }
 
 int main() {
     Graph graph = generate(NODES);
     int edges = tot_edges(graph, NODES);
     printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
-
+    print_graph(graph, NODES);
     //=====SEQUENTIAL PRIM MST=====
     using clock = std::chrono::system_clock;
     using ms = std::chrono::duration<double, std::milli>;
@@ -128,9 +172,10 @@ int main() {
     cudaMalloc((void **)&d_distance_vector, NODES * sizeof(int));
     cudaMemcpy(d_distance_vector, distance_vector.data(), NODES * sizeof(int), cudaMemcpyHostToDevice);
 
-    thrust::device_vector<bool> d_present_in_mst(NODES, false);
+    bool *d_present_in_mst;
+    cudaMalloc((void **)&d_present_in_mst, BLOCK_SIZE * sizeof (bool));
 
-    int* d_min_weights;
+    int *d_min_weights;
     cudaMalloc((void **)&d_min_weights, BLOCK_SIZE * sizeof (int));
 
     int* d_min_nodes;
