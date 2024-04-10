@@ -1,18 +1,15 @@
 #include <random>
 #include <vector>
 #include <limits>
-#include <thrust/device_vector.h>
-#include <thrust/functional.h>
-#include <thrust/scan.h>
-#include <thrust/extrema.h>
+#include <chrono>
 #include "random_graph_generator.h"
 #include "sequential_mst.h"
 #define INF INT_MAX
 #define MIN_EDGE_WEIGHT 10
 #define MAX_EDGE_WEIGHT 100
 #define MAX_NODES 100000000
-#define BLOCK_SIZE 2
-#define NODES 8
+#define BLOCK_SIZE 1024
+#define NODES 1024
 using namespace std;
 typedef pair<int, int> Edge; // Define edge type
 typedef vector<vector<Edge>> Graph; // Define graph type
@@ -73,24 +70,11 @@ void parallel_mst(int num_blocks, int nBytes, int *d_matrix, int *d_mst, int *d_
                   int *d_min_nodes, bool *d_present_in_mst) {
     vector<int> distance_vector(NODES);
     for (int i = 0; i < NODES; i++) {
-
-        cudaMemcpy(distance_vector.data(), d_distance_vector, NODES * sizeof(int), cudaMemcpyDeviceToHost);
-        print_distance_vector(distance_vector);
-
         // Launch kernel with appropriate block and thread configuration
         local_closest_node<<<num_blocks, BLOCK_SIZE, nBytes>>>(
                 d_distance_vector, d_min_weights, d_min_nodes, d_present_in_mst);
         cudaDeviceSynchronize();        // Wait for kernel to finish
 
-/*
-        //Find global closest node from the local solutions
-        thrust::device_ptr<int> thrust_weights_ptr(d_min_weights);
-        thrust::device_ptr<int> thrust_nodes_ptr = thrust::device_pointer_cast(d_min_nodes);
-        thrust::device_ptr<int> min_ptr = thrust::min_element(
-                thrust::device, thrust_weights_ptr, thrust_weights_ptr + num_blocks);
-
-
-        //int final_min_node = thrust_nodes_ptr[min_ptr - thrust_weights_ptr];*/
         int *h_min_weights = new int[num_blocks];
         int *h_min_nodes = new int[num_blocks];
 
@@ -107,39 +91,20 @@ void parallel_mst(int num_blocks, int nBytes, int *d_matrix, int *d_mst, int *d_
                 global_min_node = h_min_nodes[k];
             }
         }
-        printf("step %d, min weight %d min node %d\n", i, global_min_weight, global_min_node);
 
-
-        //TODO: change
-        //int final_min_node = i;
-        //d_present_in_mst[final_min_node] = true;
         update_distances<<<num_blocks, BLOCK_SIZE>>>(
                 d_matrix, d_mst, d_distance_vector, global_min_node,
                 d_present_in_mst);
 
         cudaDeviceSynchronize();
     }
-
-
-    int mst[NODES];
-    //int distance_vector[NODES];
-    cudaMemcpy(mst, d_mst, NODES * sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(distance_vector.data(), d_distance_vector, NODES * sizeof(int), cudaMemcpyDeviceToHost);
-
-
-    Graph mstGraph(NODES);
-    for (int i = 1 ; i < NODES; ++i) {
-        int u = mst[i];
-        mstGraph[u].emplace_back(i, distance_vector[i]);
-    }
-    print_graph(mstGraph, NODES);
 }
 
 int main() {
     Graph graph = generate(NODES);
     int edges = tot_edges(graph, NODES);
     printf("Generated graph of %d vertices and %d edges:\n", NODES, edges);
-    print_graph(graph, NODES);
+
     //=====SEQUENTIAL PRIM MST=====
     using clock = std::chrono::system_clock;
     using ms = std::chrono::duration<double, std::milli>;
@@ -200,6 +165,7 @@ int main() {
 
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
+        printf("\nUsing %d blocks with size %d\n", num_blocks, BLOCK_SIZE);
     printf("cuda event parallel execution time: %f milliseconds\n", milliseconds);
 
     // Free memory
