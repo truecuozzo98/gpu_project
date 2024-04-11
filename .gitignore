@@ -1,20 +1,5 @@
-﻿.vscode
-*.exe
-graph.txt
-hello world cuda.txt
-sequential_test.c
-sequential/.idea
-sequential/cmake-build-debug
-sequential/CMakeLists.txt
-comandi.txt
-cuda/.idea
-cuda/cmake-build-debug-visual-studio
-cuda/cmake-build-debug
-cuda/CMakeLists.txt
-cuda/test.cu
-sequential/.vs
-sequential/out
-graph
+﻿*.exe
+CMakeLists.txt
 .idea
 cmake-build-debug-visual-studio
 cmake-build-debug
