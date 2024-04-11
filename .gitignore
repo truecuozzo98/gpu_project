@@ -1,5 +1,5 @@
 ﻿*.exe
-CMakeLists.txt
 .idea
 cmake-build-debug-visual-studio
 cmake-build-debug
+CMakeLists.txt
