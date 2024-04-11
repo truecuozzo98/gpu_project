@@ -48,8 +48,6 @@ __global__ void local_closest_node(const int *d_distance_vector, int *d_min_weig
     if (tid == 0) {
         d_min_weights[blockIdx.x] = min_weight[0];
         d_min_nodes[blockIdx.x] = closest_node[0];
-
-        //printf("local, bid %d min w %d, min n %d\n", blockIdx.x, min_weight[0], closest_node[0]);
     }
 }
 
@@ -80,7 +78,6 @@ void parallel_mst(int num_blocks, int nBytes, int *d_matrix, int *d_mst, int *d_
 
         cudaMemcpy(h_min_weights, d_min_weights, num_blocks * sizeof(int), cudaMemcpyDeviceToHost);
         cudaMemcpy(h_min_nodes, d_min_nodes, num_blocks * sizeof(int), cudaMemcpyDeviceToHost);
-
 
         int global_min_weight = h_min_weights[0];
         int global_min_node = h_min_nodes[0];

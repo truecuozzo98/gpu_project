@@ -38,9 +38,9 @@ vector<int> sequential_prim_MST(const Graph& graph, int n) {
 
         // Update key value and mst index of the adjacent vertices of the picked vertex.
         // Consider only those vertices which are not yet included in MST
-        for (const Edge& neighbor : graph[u]) {
-            int v = neighbor.first;
-            int weight = neighbor.second;
+        for (const Edge& e : graph[u]) {
+            int v = e.first;
+            int weight = e.second;
             if (not_in_mst[v] && weight < key[v]) {
                 mst[v] = u;
                 key[v] = weight;
